@@ -36,6 +36,8 @@ class WindowFragment : Fragment() {
             domStorageEnabled = true
             allowFileAccess = true
             cacheMode = WebSettings.LOAD_NO_CACHE
+            useWideViewPort = true
+            loadWithOverviewMode = true
         }
 
         // Dopo che la pagina ha finito di caricare, iniettiamo CSS che:

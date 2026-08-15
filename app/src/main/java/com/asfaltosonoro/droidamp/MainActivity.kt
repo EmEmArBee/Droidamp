@@ -85,6 +85,8 @@ class MainActivity : AppCompatActivity() {
             allowFileAccess = true
             cacheMode = WebSettings.LOAD_NO_CACHE
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            useWideViewPort = true
+            loadWithOverviewMode = true
         }
         return webView
     }
