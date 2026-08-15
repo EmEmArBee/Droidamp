@@ -14,13 +14,11 @@ import androidx.fragment.app.Fragment
 class WindowFragment : Fragment() {
 
     // NB: nella pagina reale Webamp si monta dentro un div con id "webamp"
-    // (#webamp #main-window, ecc). Prefissiamo anche noi con #webamp per
-    // avere una specificita' CSS almeno pari alle regole originali di Webamp,
-    // cosi' il nostro !important vince in modo affidabile.
-    enum class WindowType(val cssSelectorToShow: String) {
-        PLAYER("#webamp #main-window"),
-        EQUALIZER("#webamp #equalizer-window"),
-        PLAYLIST("#webamp #playlist-window")
+    // (#webamp #main-window, ecc).
+    enum class WindowType(val cssId: String) {
+        PLAYER("#main-window"),
+        EQUALIZER("#equalizer-window"),
+        PLAYLIST("#playlist-window")
     }
 
     private lateinit var type: WindowType
@@ -37,6 +35,17 @@ class WindowFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         val webView = WebView(requireContext())
+
+        // FIX GLITCH A GRIGLIA: le WebView dentro un ViewPager2 con
+        // accelerazione hardware attiva a volte "sporcano" il buffer
+        // grafico quando vengono riciclate durante lo swipe, producendo
+        // un effetto a griglia/mosaico ripetuto (bug noto della
+        // combinazione WebView + RecyclerView/ViewPager2 su alcune GPU
+        // Android). Forzare il rendering software su queste WebView lo
+        // risolve; e' un filo piu' lento ma qui non e' un problema dato
+        // che sono schermate statiche, non scrolling continuo.
+        webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -51,8 +60,10 @@ class WindowFragment : Fragment() {
         // Un solo WebViewClient che fa DUE cose:
         // 1) shouldInterceptRequest: serve gli assets dal dominio virtuale
         //    https://appassets.androidplatform.net/ invece di file://
-        // 2) onPageFinished: inietta il CSS che isola una sola finestra
-        //    Webamp a tutto schermo (le altre due nascoste)
+        // 2) onPageFinished: nasconde le altre 2 finestre, mostra la nostra
+        //    alla sua dimensione naturale, e chiama droidampFitToScreen()
+        //    (definita in index.html) per scalarla/centrarla SENZA
+        //    deformarla, riempiendo lo schermo il piu' possibile.
         webView.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(
                 view: WebView,
@@ -62,30 +73,23 @@ class WindowFragment : Fragment() {
             }
 
             override fun onPageFinished(view: WebView, url: String) {
-                val css = """
-                    #webamp #main-window, #webamp #equalizer-window, #webamp #playlist-window {
-                        display: none !important;
-                    }
-                    ${type.cssSelectorToShow} {
-                        display: block !important;
-                        position: fixed !important;
-                        top: 0 !important; left: 0 !important;
-                        width: 100vw !important; height: 100vh !important;
-                        box-sizing: border-box !important;
-                        margin: 0 !important;
-                        transform: none !important;
-                    }
-                """.trimIndent().replace("\n", " ")
-                view.evaluateJavascript(
-                    """
-                    (function() {
+                val js = """
+                    (function waitForWebamp(tries) {
+                        var el = document.querySelector('${type.cssId}');
+                        if (!el) {
+                            if (tries > 0) { setTimeout(function(){ waitForWebamp(tries - 1); }, 100); }
+                            return;
+                        }
                         var style = document.createElement('style');
-                        style.innerHTML = "$css";
+                        style.innerHTML = "#main-window, #equalizer-window, #playlist-window { display: none !important; } ${type.cssId} { display: block !important; }";
                         document.head.appendChild(style);
-                    })();
-                    """.trimIndent(),
-                    null
-                )
+                        window.__droidampFitSelector = '${type.cssId}';
+                        if (window.droidampFitToScreen) {
+                            window.droidampFitToScreen('${type.cssId}');
+                        }
+                    })(30);
+                """.trimIndent()
+                view.evaluateJavascript(js, null)
             }
         }
 

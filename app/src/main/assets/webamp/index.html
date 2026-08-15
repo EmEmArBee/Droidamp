@@ -23,7 +23,7 @@
     <script>
         // NOTE: gira su https://appassets.androidplatform.net/assets/webamp/
         // (dominio virtuale locale servito da WebViewAssetLoader), NON su file://
-        // — Webamp usa fetch() per leggere il file .wsz e file:// gli dà problemi.
+        // - Webamp usa fetch() per leggere il file .wsz e file:// gli da' problemi.
         var webamp = new Webamp({
             initialSkin: { url: "skins/base-2_91.wsz" },
             initialTracks: []
@@ -33,7 +33,56 @@
         // Fase 2) e per debug da chrome://inspect.
         window.droidamp = webamp;
 
-        webamp.renderWhenReady(document.getElementById("webamp-container"));
+        // ------------------------------------------------------------------
+        // FIT-TO-SCREEN
+        //
+        // Webamp si disegna sempre alla sua dimensione "pixel classica"
+        // fissa (skin originale = 275x116 la finestra principale) e si
+        // centra nel contenitore, senza mai riempire lo schermo da solo.
+        // Questa funzione scala (uniformemente, senza deformare i pixel
+        // della skin) e centra un elemento per farlo combaciare il piu'
+        // possibile con lo schermo disponibile, tipo "contain" del CSS
+        // ma applicato a runtime perche' servono le dimensioni reali del
+        // contenuto dopo che Webamp lo ha renderizzato.
+        //
+        // Usata sia per il DROIDAMP_MODE=stack (portrait, tutto lo stack
+        // player+EQ+playlist insieme) sia per DROIDAMP_MODE=window (una
+        // singola finestra Webamp isolata, usata dalle pagine landscape
+        // in WindowFragment.kt via evaluateJavascript).
+        // ------------------------------------------------------------------
+        window.droidampFitToScreen = function (selector) {
+            var el = document.querySelector(selector);
+            if (!el) return;
+            el.style.transform = "none";
+            var rect = el.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) return;
+            var scale = Math.min(
+                window.innerWidth / rect.width,
+                window.innerHeight / rect.height
+            ) * 0.98;
+            var scaledWidth = rect.width * scale;
+            var scaledHeight = rect.height * scale;
+            el.style.transformOrigin = "top left";
+            el.style.position = "fixed";
+            el.style.left = ((window.innerWidth - scaledWidth) / 2) + "px";
+            el.style.top = ((window.innerHeight - scaledHeight) / 2) + "px";
+            el.style.transform = "scale(" + scale + ")";
+            el.style.zIndex = "9999";
+        };
+
+        window.addEventListener("resize", function () {
+            if (window.__droidampFitSelector) {
+                window.droidampFitToScreen(window.__droidampFitSelector);
+            }
+        });
+
+        webamp.renderWhenReady(document.getElementById("webamp-container")).then(function () {
+            // Default: modalita' portrait, scala l'intero stack (#webamp).
+            // WindowFragment.kt (landscape) sovrascrive window.__droidampFitSelector
+            // per scalare invece una singola finestra a tutto schermo.
+            window.__droidampFitSelector = "#webamp";
+            window.droidampFitToScreen("#webamp");
+        });
     </script>
 </body>
 </html>
