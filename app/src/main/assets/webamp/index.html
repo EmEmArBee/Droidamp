@@ -34,40 +34,65 @@
         window.droidamp = webamp;
 
         // ------------------------------------------------------------------
-        // FIT-TO-SCREEN
+        // FIT-TO-SCREEN (v2)
         //
-        // Webamp si disegna sempre alla sua dimensione "pixel classica"
-        // fissa (skin originale = 275x116 la finestra principale) e si
-        // centra nel contenitore, senza mai riempire lo schermo da solo.
-        // Questa funzione scala (uniformemente, senza deformare i pixel
-        // della skin) e centra un elemento per farlo combaciare il piu'
-        // possibile con lo schermo disponibile, tipo "contain" del CSS
-        // ma applicato a runtime perche' servono le dimensioni reali del
-        // contenuto dopo che Webamp lo ha renderizzato.
+        // Le finestre di Webamp (#main-window, #equalizer-window,
+        // #playlist-window, e #webamp stesso) sono in "position: absolute"
+        // -- e' cosi' che Webamp le rende trascinabili. Questo significa
+        // che NON possiamo centrarle con un semplice calcolo manuale di
+        // position:fixed + left/top (quello che avevamo prima), perche'
+        // "position: absolute" ignora completamente i calcoli basati sul
+        // flusso normale del documento.
         //
-        // Usata sia per il DROIDAMP_MODE=stack (portrait, tutto lo stack
-        // player+EQ+playlist insieme) sia per DROIDAMP_MODE=window (una
-        // singola finestra Webamp isolata, usata dalle pagine landscape
-        // in WindowFragment.kt via evaluateJavascript).
+        // Soluzione: spostiamo il nodo reale dentro un contenitore
+        // full-screen con "display:flex; align-items:center;
+        // justify-content:center", e forziamo l'elemento a
+        // "position:static" cosi' rientra nel flusso ed e' il flexbox del
+        // genitore a centrarlo, non calcoli nostri. Poi scaliamo con
+        // "zoom" (piu' affidabile di transform:scale per questo caso,
+        // perche' il flex del genitore si ridimensiona di conseguenza
+        // invece di dover ricalcolare manualmente la posizione).
         // ------------------------------------------------------------------
         window.droidampFitToScreen = function (selector) {
             var el = document.querySelector(selector);
             if (!el) return;
-            el.style.transform = "none";
+
+            el.style.zoom = "1";
+            el.style.position = "static";
+            el.style.top = "";
+            el.style.left = "";
+            el.style.margin = "0";
+
             var rect = el.getBoundingClientRect();
             if (rect.width === 0 || rect.height === 0) return;
+
+            var wrapperId = "droidamp-fit-wrapper";
+            var wrapper = document.getElementById(wrapperId);
+            if (!wrapper) {
+                wrapper = document.createElement("div");
+                wrapper.id = wrapperId;
+                wrapper.style.position = "fixed";
+                wrapper.style.top = "0";
+                wrapper.style.left = "0";
+                wrapper.style.width = "100vw";
+                wrapper.style.height = "100vh";
+                wrapper.style.display = "flex";
+                wrapper.style.alignItems = "center";
+                wrapper.style.justifyContent = "center";
+                wrapper.style.overflow = "hidden";
+                wrapper.style.zIndex = "9999";
+                wrapper.style.background = "#000";
+                document.body.appendChild(wrapper);
+            }
+            if (el.parentElement !== wrapper) {
+                wrapper.appendChild(el);
+            }
+
             var scale = Math.min(
                 window.innerWidth / rect.width,
                 window.innerHeight / rect.height
             ) * 0.98;
-            var scaledWidth = rect.width * scale;
-            var scaledHeight = rect.height * scale;
-            el.style.transformOrigin = "top left";
-            el.style.position = "fixed";
-            el.style.left = ((window.innerWidth - scaledWidth) / 2) + "px";
-            el.style.top = ((window.innerHeight - scaledHeight) / 2) + "px";
-            el.style.transform = "scale(" + scale + ")";
-            el.style.zIndex = "9999";
+            el.style.zoom = String(scale);
         };
 
         window.addEventListener("resize", function () {
@@ -76,13 +101,7 @@
             }
         });
 
-        webamp.renderWhenReady(document.getElementById("webamp-container")).then(function () {
-            // Default: modalita' portrait, scala l'intero stack (#webamp).
-            // WindowFragment.kt (landscape) sovrascrive window.__droidampFitSelector
-            // per scalare invece una singola finestra a tutto schermo.
-            window.__droidampFitSelector = "#webamp";
-            window.droidampFitToScreen("#webamp");
-        });
+        webamp.renderWhenReady(document.getElementById("webamp-container"));
     </script>
 </body>
 </html>
