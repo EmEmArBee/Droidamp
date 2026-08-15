@@ -7,36 +7,34 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowInsetsController
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
 import androidx.viewpager2.widget.ViewPager2
 
 /**
  * FASE 1 - SCAFFOLD
  *
- * Cosa fa già:
+ * Cosa fa gia':
  *  - Carica Webamp (bundle statico in assets/webamp/) completamente offline.
- *  - Fullscreen immersiva vera: status bar e barra di navigazione nascoste,
- *    richiamabili con uno swipe dal bordo (tornano nascoste da sole dopo poco).
+ *  - Fullscreen immersiva vera: status bar e barra di navigazione nascoste.
+ *  - Zoom nativo della WebView (NativeZoomBridge) per riempire lo schermo
+ *    il piu' possibile senza deformare e senza toccare il CSS interno di
+ *    Webamp (i tentativi precedenti basati su CSS transform/position
+ *    rompevano il posizionamento dei controlli interni delle finestre).
  *  - In PORTRAIT: mostra la WebView a schermo intero con lo stack classico
- *    (player + EQ + playlist) così com'è di default in Webamp.
- *  - In LANDSCAPE: passa a un ViewPager2 con 4 pagine (player / EQ / playlist /
+ *    (player + EQ + playlist).
+ *  - In LANDSCAPE: ViewPager2 con 4 pagine (player / EQ / playlist /
  *    projectM), ognuna a schermo intero, navigabili a swipe.
  *
- * Cosa NON fa ancora (Fase 2 e 3, arriveranno dopo):
- *  - Bridge audio nativo (playback reale via Media3/ExoPlayer) — per ora
- *    Webamp gira "finto", senza audio vero collegato.
- *  - Sincronizzazione dello stato (traccia in play, posizione, EQ) tra le
- *    pagine del landscape: al momento sono indipendenti.
- *  - Caricamento skin da file locale (verrà insieme al bridge audio, stesso
- *    meccanismo di "ponte" JS↔Kotlin).
- *  - projectM vero (per ora la 4ª pagina è un placeholder nero).
- *
- * TODO Fase 2: creare un DroidAmpAudioBridge (JS interface) iniettato in
- * tutte le WebView, appoggiato a un unico AudioPlayerService in background,
- * cosi' tutte le pagine restano sincronizzate sullo stesso stato. Stesso
- * bridge esporrà anche il caricamento skin da file locale.
+ * Cosa NON fa ancora (Fase 2 e 3):
+ *  - Bridge audio nativo (playback reale via Media3/ExoPlayer).
+ *  - Sincronizzazione dello stato tra le pagine del landscape.
+ *  - Caricamento skin da file locale.
+ *  - projectM vero (per ora placeholder nero).
  */
 class MainActivity : AppCompatActivity() {
 
@@ -95,7 +93,35 @@ class MainActivity : AppCompatActivity() {
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         )
-        AssetLoaderHelper.attach(this, webView)
+
+        NativeZoomBridge.enableZoomSupport(webView)
+
+        val assetLoader = AssetLoaderHelper.buildAssetLoader(this)
+        webView.webViewClient = object : WebViewClient() {
+            override fun shouldInterceptRequest(
+                view: WebView,
+                request: WebResourceRequest
+            ): WebResourceResponse? {
+                return assetLoader.shouldInterceptRequest(request.url)
+            }
+
+            override fun onPageFinished(view: WebView, url: String) {
+                val js = """
+                    (function droidAmpWaitAndZoom(triesLeft) {
+                        var el = document.querySelector('#webamp');
+                        if (!el) {
+                            if (triesLeft > 0) {
+                                setTimeout(function () { droidAmpWaitAndZoom(triesLeft - 1); }, 100);
+                            }
+                            return;
+                        }
+                        ${NativeZoomBridge.measureAndReportScaleJs("el")}
+                    })(50);
+                """.trimIndent()
+                view.evaluateJavascript(js, null)
+            }
+        }
+
         webView.loadUrl(AssetLoaderHelper.WEBAMP_INDEX_URL)
         container.addView(webView)
     }
@@ -118,8 +144,6 @@ class MainActivity : AppCompatActivity() {
             allowFileAccess = true
             cacheMode = WebSettings.LOAD_NO_CACHE
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-            useWideViewPort = true
-            loadWithOverviewMode = true
         }
         return webView
     }
