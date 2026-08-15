@@ -95,9 +95,7 @@ class MainActivity : AppCompatActivity() {
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         )
-        // Target "#webamp": l'intero stack (player + EQ + playlist) viene
-        // scalato e centrato insieme, senza deformarlo.
-        AssetLoaderHelper.attachWithFitToScreen(this, webView, "#webamp")
+        AssetLoaderHelper.attach(this, webView)
         webView.loadUrl(AssetLoaderHelper.WEBAMP_INDEX_URL)
         container.addView(webView)
     }

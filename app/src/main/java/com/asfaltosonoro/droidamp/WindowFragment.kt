@@ -4,15 +4,15 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.fragment.app.Fragment
 
 class WindowFragment : Fragment() {
 
-    // NB: nella pagina reale Webamp si monta dentro un div con id "webamp"
-    // (#webamp #main-window, ecc.), ma essendo id univoci nel documento
-    // possiamo selezionarli direttamente.
     enum class WindowType(val cssId: String) {
         PLAYER("#main-window"),
         EQUALIZER("#equalizer-window"),
@@ -36,11 +36,8 @@ class WindowFragment : Fragment() {
 
         // FIX GLITCH A GRIGLIA: le WebView dentro un ViewPager2 con
         // accelerazione hardware attiva a volte "sporcano" il buffer
-        // grafico quando vengono riciclate durante lo swipe, producendo
-        // un effetto a griglia/mosaico ripetuto (bug noto della
-        // combinazione WebView + RecyclerView/ViewPager2 su alcune GPU
-        // Android). Forzare il rendering software su queste WebView lo
-        // risolve.
+        // grafico quando vengono riciclate durante lo swipe. Forzare il
+        // rendering software su queste WebView lo risolve.
         webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
 
         webView.settings.apply {
@@ -48,24 +45,43 @@ class WindowFragment : Fragment() {
             domStorageEnabled = true
             allowFileAccess = true
             cacheMode = WebSettings.LOAD_NO_CACHE
-            useWideViewPort = true
-            loadWithOverviewMode = true
         }
 
-        // Prima di chiamare il fit-to-screen (dentro attachWithFitToScreen),
-        // nascondiamo le altre 2 finestre e mostriamo la nostra.
-        val hideOthersJs = """
-            var style = document.createElement('style');
-            style.innerHTML = "#main-window, #equalizer-window, #playlist-window { display: none !important; } ${type.cssId} { display: block !important; }";
-            document.head.appendChild(style);
-        """.trimIndent()
+        val assetLoader = AssetLoaderHelper.buildAssetLoader(requireContext())
 
-        AssetLoaderHelper.attachWithFitToScreen(
-            requireContext(),
-            webView,
-            type.cssId,
-            extraJs = hideOthersJs
-        )
+        // Isoliamo la nostra finestra nascondendo le altre 2. NON tocchiamo
+        // ne' position ne' transform delle finestre: le finestre Webamp
+        // usano position:absolute anche per i controlli interni (slider,
+        // bottoni), e manipolarne il position da fuori li rompe. Per ora
+        // la finestra resta alla sua dimensione naturale, centrata dal
+        // comportamento di default di Webamp -- niente fullscreen forzato,
+        // ma niente glitch/rotture nemmeno.
+        webView.webViewClient = object : WebViewClient() {
+            override fun shouldInterceptRequest(
+                view: WebView,
+                request: WebResourceRequest
+            ): WebResourceResponse? {
+                return assetLoader.shouldInterceptRequest(request.url)
+            }
+
+            override fun onPageFinished(view: WebView, url: String) {
+                val js = """
+                    (function droidAmpWaitAndIsolate(triesLeft) {
+                        var el = document.querySelector('${type.cssId}');
+                        if (!el) {
+                            if (triesLeft > 0) {
+                                setTimeout(function () { droidAmpWaitAndIsolate(triesLeft - 1); }, 100);
+                            }
+                            return;
+                        }
+                        var style = document.createElement('style');
+                        style.innerHTML = "#main-window, #equalizer-window, #playlist-window { display: none !important; } ${type.cssId} { display: block !important; }";
+                        document.head.appendChild(style);
+                    })(50);
+                """.trimIndent()
+                view.evaluateJavascript(js, null)
+            }
+        }
 
         webView.loadUrl(AssetLoaderHelper.WEBAMP_INDEX_URL)
         return webView

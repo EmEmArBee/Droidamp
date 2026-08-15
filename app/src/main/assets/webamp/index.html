@@ -33,75 +33,18 @@
         // Fase 2) e per debug da chrome://inspect.
         window.droidamp = webamp;
 
-        // ------------------------------------------------------------------
-        // FIT-TO-SCREEN (v2)
-        //
-        // Le finestre di Webamp (#main-window, #equalizer-window,
-        // #playlist-window, e #webamp stesso) sono in "position: absolute"
-        // -- e' cosi' che Webamp le rende trascinabili. Questo significa
-        // che NON possiamo centrarle con un semplice calcolo manuale di
-        // position:fixed + left/top (quello che avevamo prima), perche'
-        // "position: absolute" ignora completamente i calcoli basati sul
-        // flusso normale del documento.
-        //
-        // Soluzione: spostiamo il nodo reale dentro un contenitore
-        // full-screen con "display:flex; align-items:center;
-        // justify-content:center", e forziamo l'elemento a
-        // "position:static" cosi' rientra nel flusso ed e' il flexbox del
-        // genitore a centrarlo, non calcoli nostri. Poi scaliamo con
-        // "zoom" (piu' affidabile di transform:scale per questo caso,
-        // perche' il flex del genitore si ridimensiona di conseguenza
-        // invece di dover ricalcolare manualmente la posizione).
-        // ------------------------------------------------------------------
-        window.droidampFitToScreen = function (selector) {
-            var el = document.querySelector(selector);
-            if (!el) return;
-
-            el.style.zoom = "1";
-            el.style.position = "static";
-            el.style.top = "";
-            el.style.left = "";
-            el.style.margin = "0";
-
-            var rect = el.getBoundingClientRect();
-            if (rect.width === 0 || rect.height === 0) return;
-
-            var wrapperId = "droidamp-fit-wrapper";
-            var wrapper = document.getElementById(wrapperId);
-            if (!wrapper) {
-                wrapper = document.createElement("div");
-                wrapper.id = wrapperId;
-                wrapper.style.position = "fixed";
-                wrapper.style.top = "0";
-                wrapper.style.left = "0";
-                wrapper.style.width = "100vw";
-                wrapper.style.height = "100vh";
-                wrapper.style.display = "flex";
-                wrapper.style.alignItems = "center";
-                wrapper.style.justifyContent = "center";
-                wrapper.style.overflow = "hidden";
-                wrapper.style.zIndex = "9999";
-                wrapper.style.background = "#000";
-                document.body.appendChild(wrapper);
-            }
-            if (el.parentElement !== wrapper) {
-                wrapper.appendChild(el);
-            }
-
-            var scale = Math.min(
-                window.innerWidth / rect.width,
-                window.innerHeight / rect.height
-            ) * 0.98;
-            el.style.zoom = String(scale);
-        };
-
-        window.addEventListener("resize", function () {
-            if (window.__droidampFitSelector) {
-                window.droidampFitToScreen(window.__droidampFitSelector);
-            }
-        });
-
         webamp.renderWhenReady(document.getElementById("webamp-container"));
+
+        // NOTA: qui c'era un tentativo di scalare/centrare Webamp per
+        // riempire lo schermo (droidampFitToScreen). L'ho tolto: le
+        // finestre Webamp usano position:absolute anche INTERNAMENTE per i
+        // controlli (slider, bottoni), e ogni tentativo di manipolarne il
+        // position/transform da fuori ha finito per rompere quel sistema
+        // di riferimento interno in modi imprevedibili. Meglio riprendere
+        // questa cosa con calma in un secondo momento, con un approccio
+        // piu' testato, invece di continuare a rattoppare. Per ora Webamp
+        // resta alla sua dimensione naturale, centrato dal suo stesso
+        // comportamento di default.
     </script>
 </body>
 </html>
