@@ -95,9 +95,10 @@ class MainActivity : AppCompatActivity() {
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         )
+        AssetLoaderHelper.attach(this, webView)
         // Nessuna iniezione CSS: usa lo stack verticale di default di Webamp
         // (player in cima, EQ sotto, playlist sotto ancora).
-        webView.loadUrl("file:///android_asset/webamp/index.html")
+        webView.loadUrl(AssetLoaderHelper.WEBAMP_INDEX_URL)
         container.addView(webView)
     }
 

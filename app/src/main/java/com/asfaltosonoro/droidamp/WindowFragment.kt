@@ -4,6 +4,8 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -11,10 +13,14 @@ import androidx.fragment.app.Fragment
 
 class WindowFragment : Fragment() {
 
+    // NB: nella pagina reale Webamp si monta dentro un div con id "webamp"
+    // (#webamp #main-window, ecc). Prefissiamo anche noi con #webamp per
+    // avere una specificita' CSS almeno pari alle regole originali di Webamp,
+    // cosi' il nostro !important vince in modo affidabile.
     enum class WindowType(val cssSelectorToShow: String) {
-        PLAYER("#main-window"),
-        EQUALIZER("#equalizer-window"),
-        PLAYLIST("#playlist-window")
+        PLAYER("#webamp #main-window"),
+        EQUALIZER("#webamp #equalizer-window"),
+        PLAYLIST("#webamp #playlist-window")
     }
 
     private lateinit var type: WindowType
@@ -40,14 +46,24 @@ class WindowFragment : Fragment() {
             loadWithOverviewMode = true
         }
 
-        // Dopo che la pagina ha finito di caricare, iniettiamo CSS che:
-        // 1) nasconde tutte le finestre Webamp
-        // 2) mostra SOLO quella di questo fragment
-        // 3) la fa espandere a riempire tutto lo schermo
+        val assetLoader = AssetLoaderHelper.buildAssetLoader(requireContext())
+
+        // Un solo WebViewClient che fa DUE cose:
+        // 1) shouldInterceptRequest: serve gli assets dal dominio virtuale
+        //    https://appassets.androidplatform.net/ invece di file://
+        // 2) onPageFinished: inietta il CSS che isola una sola finestra
+        //    Webamp a tutto schermo (le altre due nascoste)
         webView.webViewClient = object : WebViewClient() {
+            override fun shouldInterceptRequest(
+                view: WebView,
+                request: WebResourceRequest
+            ): WebResourceResponse? {
+                return assetLoader.shouldInterceptRequest(request.url)
+            }
+
             override fun onPageFinished(view: WebView, url: String) {
                 val css = """
-                    #main-window, #equalizer-window, #playlist-window {
+                    #webamp #main-window, #webamp #equalizer-window, #webamp #playlist-window {
                         display: none !important;
                     }
                     ${type.cssSelectorToShow} {
@@ -73,7 +89,7 @@ class WindowFragment : Fragment() {
             }
         }
 
-        webView.loadUrl("file:///android_asset/webamp/index.html")
+        webView.loadUrl(AssetLoaderHelper.WEBAMP_INDEX_URL)
         return webView
     }
 
