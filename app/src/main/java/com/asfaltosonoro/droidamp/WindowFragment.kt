@@ -66,6 +66,13 @@ class WindowFragment : Fragment() {
                 return assetLoader.shouldInterceptRequest(request.url)
             }
 
+            override fun shouldOverrideUrlLoading(
+                view: WebView,
+                request: WebResourceRequest
+            ): Boolean {
+                return !AssetLoaderHelper.isLocalAssetUrl(request.url.toString())
+            }
+
             override fun onPageFinished(view: WebView, url: String) {
                 val js = """
                     (function droidAmpWaitIsolateAndZoom(triesLeft) {

@@ -23,6 +23,11 @@ object AssetLoaderHelper {
     const val WEBAMP_INDEX_URL =
         "https://appassets.androidplatform.net/assets/webamp/index.html"
 
+    private const val LOCAL_DOMAIN = "https://appassets.androidplatform.net/"
+
+    /** True se l'URL e' servito dal nostro WebViewAssetLoader (contenuto locale). */
+    fun isLocalAssetUrl(url: String): Boolean = url.startsWith(LOCAL_DOMAIN)
+
     fun buildAssetLoader(context: Context): WebViewAssetLoader {
         return WebViewAssetLoader.Builder()
             .addPathHandler(

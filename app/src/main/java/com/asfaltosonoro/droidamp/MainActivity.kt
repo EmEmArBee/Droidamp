@@ -105,6 +105,17 @@ class MainActivity : AppCompatActivity() {
                 return assetLoader.shouldInterceptRequest(request.url)
             }
 
+            override fun shouldOverrideUrlLoading(
+                view: WebView,
+                request: WebResourceRequest
+            ): Boolean {
+                // Webamp ha link interni (es. "about") che puntano a
+                // webamp.org: siamo offline e non li vogliamo aprire
+                // dentro l'app, quindi blocchiamo tutto cio' che non e'
+                // il nostro contenuto locale.
+                return !AssetLoaderHelper.isLocalAssetUrl(request.url.toString())
+            }
+
             override fun onPageFinished(view: WebView, url: String) {
                 val js = """
                     (function droidAmpWaitAndZoom(triesLeft) {
