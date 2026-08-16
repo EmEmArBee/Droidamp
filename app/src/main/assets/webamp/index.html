@@ -29,29 +29,41 @@
         webamp.renderWhenReady(document.getElementById("webamp-container"));
 
         // ------------------------------------------------------------------
-        // FIT-TO-SCREEN (v3) - CSS "zoom", NIENTE position, NIENTE DOM move.
+        // FIT-TO-SCREEN (v4) - CSS transform:scale, NIENTE position/DOM move.
+        //
+        // v3 usava CSS "zoom", che pero' la WebView di sistema Android non
+        // sembra supportare (proprieta' non-standard, storicamente solo
+        // desktop/Safari): veniva ignorata silenziosamente, da qui lo zoom
+        // che non cambiava nulla. transform:scale() e' CSS3 standard,
+        // supportato ovunque.
         //
         // Lezione imparata dai tentativi precedenti: le finestre Webamp
         // usano position:absolute anche per i loro controlli interni
         // (slider, bottoni). Qualsiasi cosa che cambi il "position" o
         // sposti il nodo altrove nel DOM rompe quel sistema di
-        // riferimento. La proprieta' CSS "zoom" invece scala il layout
-        // (non solo il rendering visivo, a differenza di transform) --
-        // tutti i discendenti, inclusi quelli position:absolute, vengono
-        // ricalcolati correttamente nel nuovo spazio scalato. Non tocchiamo
-        // ne' position ne' la posizione nel DOM: solo "zoom".
+        // riferimento. Qui NON tocchiamo mai "position": solo transform,
+        // con transform-origin "top left" cosi' l'elemento scala a
+        // partire dalla sua posizione attuale invece di spostarsi.
         // ------------------------------------------------------------------
         window.droidampFitToScreen = function (selector) {
             var el = document.querySelector(selector);
             if (!el) return;
-            el.style.zoom = "1";
+            el.style.transform = "none";
             var rect = el.getBoundingClientRect();
             if (rect.width === 0 || rect.height === 0) return;
             var scale = Math.min(
                 window.innerWidth / rect.width,
                 window.innerHeight / rect.height
             ) * 0.97;
-            el.style.zoom = String(scale);
+            // Solo transform, MAI position: transform con transform-origin
+            // "top left" scala l'elemento (e tutti i suoi discendenti,
+            // inclusi quelli position:absolute) a partire dal suo angolo
+            // in alto a sinistra attuale, senza spostarlo ne' toccare il
+            // suo "position". E' CSS standard, supportato ovunque
+            // (a differenza di "zoom", che la WebView di sistema Android
+            // sembra ignorare silenziosamente).
+            el.style.transformOrigin = "top left";
+            el.style.transform = "scale(" + scale + ")";
         };
     </script>
 </body>
