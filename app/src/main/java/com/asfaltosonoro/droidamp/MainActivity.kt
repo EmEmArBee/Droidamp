@@ -18,23 +18,11 @@ import androidx.viewpager2.widget.ViewPager2
 /**
  * FASE 1 - SCAFFOLD
  *
- * Cosa fa gia':
- *  - Carica Webamp (bundle statico in assets/webamp/) completamente offline.
- *  - Fullscreen immersiva vera: status bar e barra di navigazione nascoste.
- *  - Zoom nativo della WebView (NativeZoomBridge) per riempire lo schermo
- *    il piu' possibile senza deformare e senza toccare il CSS interno di
- *    Webamp (i tentativi precedenti basati su CSS transform/position
- *    rompevano il posizionamento dei controlli interni delle finestre).
- *  - In PORTRAIT: mostra la WebView a schermo intero con lo stack classico
- *    (player + EQ + playlist).
- *  - In LANDSCAPE: ViewPager2 con 4 pagine (player / EQ / playlist /
- *    projectM), ognuna a schermo intero, navigabili a swipe.
- *
- * Cosa NON fa ancora (Fase 2 e 3):
- *  - Bridge audio nativo (playback reale via Media3/ExoPlayer).
- *  - Sincronizzazione dello stato tra le pagine del landscape.
- *  - Caricamento skin da file locale.
- *  - projectM vero (per ora placeholder nero).
+ * Fit-to-screen: CSS "zoom" applicato via JS (vedi index.html,
+ * droidampFitToScreen), MAI zoom nativo della WebView -- quello e'
+ * manipolabile dall'utente col pinch e va in conflitto con lo swipe tra
+ * le pagine landscape e col trascinamento degli slider dell'equalizzatore.
+ * Lo zoom deve essere fisso, calcolato una volta, non controllabile.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -94,8 +82,6 @@ class MainActivity : AppCompatActivity() {
             ViewGroup.LayoutParams.MATCH_PARENT
         )
 
-        NativeZoomBridge.enableZoomSupport(webView)
-
         val assetLoader = AssetLoaderHelper.buildAssetLoader(this)
         webView.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(
@@ -109,24 +95,22 @@ class MainActivity : AppCompatActivity() {
                 view: WebView,
                 request: WebResourceRequest
             ): Boolean {
-                // Webamp ha link interni (es. "about") che puntano a
-                // webamp.org: siamo offline e non li vogliamo aprire
-                // dentro l'app, quindi blocchiamo tutto cio' che non e'
-                // il nostro contenuto locale.
                 return !AssetLoaderHelper.isLocalAssetUrl(request.url.toString())
             }
 
             override fun onPageFinished(view: WebView, url: String) {
                 val js = """
-                    (function droidAmpWaitAndZoom(triesLeft) {
+                    (function droidAmpWaitAndFit(triesLeft) {
                         var el = document.querySelector('#webamp');
                         if (!el) {
                             if (triesLeft > 0) {
-                                setTimeout(function () { droidAmpWaitAndZoom(triesLeft - 1); }, 100);
+                                setTimeout(function () { droidAmpWaitAndFit(triesLeft - 1); }, 100);
                             }
                             return;
                         }
-                        ${NativeZoomBridge.measureAndReportScaleJs("el")}
+                        if (window.droidampFitToScreen) {
+                            window.droidampFitToScreen('#webamp');
+                        }
                     })(50);
                 """.trimIndent()
                 view.evaluateJavascript(js, null)
@@ -155,6 +139,8 @@ class MainActivity : AppCompatActivity() {
             allowFileAccess = true
             cacheMode = WebSettings.LOAD_NO_CACHE
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            // NIENTE setSupportZoom/builtInZoomControls: lo zoom e' fisso,
+            // calcolato via CSS "zoom" in JS, non manipolabile a mano.
         }
         return webView
     }

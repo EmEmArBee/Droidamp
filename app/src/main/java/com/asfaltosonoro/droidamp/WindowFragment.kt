@@ -45,19 +45,14 @@ class WindowFragment : Fragment() {
             domStorageEnabled = true
             allowFileAccess = true
             cacheMode = WebSettings.LOAD_NO_CACHE
+            // NIENTE setSupportZoom/builtInZoomControls: altrimenti il
+            // pinch entra in conflitto con lo swipe tra le pagine e col
+            // trascinamento degli slider dell'equalizzatore. Lo zoom e'
+            // fisso, calcolato via CSS "zoom" (droidampFitToScreen).
         }
-
-        NativeZoomBridge.enableZoomSupport(webView)
 
         val assetLoader = AssetLoaderHelper.buildAssetLoader(requireContext())
 
-        // 1) shouldInterceptRequest: serve gli assets dal dominio virtuale
-        //    https://appassets.androidplatform.net/
-        // 2) onPageFinished: nasconde le altre 2 finestre, mostra la
-        //    nostra, poi misura la sua dimensione reale e chiede alla
-        //    WebView di applicare lo zoom nativo (mai CSS/position: e'
-        //    quello che rompeva i controlli interni nei tentativi
-        //    precedenti).
         webView.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(
                 view: WebView,
@@ -75,18 +70,20 @@ class WindowFragment : Fragment() {
 
             override fun onPageFinished(view: WebView, url: String) {
                 val js = """
-                    (function droidAmpWaitIsolateAndZoom(triesLeft) {
+                    (function droidAmpWaitIsolateAndFit(triesLeft) {
                         var el = document.querySelector('${type.cssId}');
                         if (!el) {
                             if (triesLeft > 0) {
-                                setTimeout(function () { droidAmpWaitIsolateAndZoom(triesLeft - 1); }, 100);
+                                setTimeout(function () { droidAmpWaitIsolateAndFit(triesLeft - 1); }, 100);
                             }
                             return;
                         }
                         var style = document.createElement('style');
                         style.innerHTML = "#main-window, #equalizer-window, #playlist-window { display: none !important; } ${type.cssId} { display: block !important; }";
                         document.head.appendChild(style);
-                        ${NativeZoomBridge.measureAndReportScaleJs("el")}
+                        if (window.droidampFitToScreen) {
+                            window.droidampFitToScreen('${type.cssId}');
+                        }
                     })(50);
                 """.trimIndent()
                 view.evaluateJavascript(js, null)

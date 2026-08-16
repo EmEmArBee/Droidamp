@@ -9,7 +9,7 @@
             margin: 0; padding: 0;
             width: 100%; height: 100%;
             background: #000;
-            overflow: hidden;
+            overflow: auto;
         }
         #webamp-container {
             width: 100%; height: 100%;
@@ -21,30 +21,38 @@
 
     <script src="webamp.bundle.min.js"></script>
     <script>
-        // NOTE: gira su https://appassets.androidplatform.net/assets/webamp/
-        // (dominio virtuale locale servito da WebViewAssetLoader), NON su file://
-        // - Webamp usa fetch() per leggere il file .wsz e file:// gli da' problemi.
         var webamp = new Webamp({
             initialSkin: { url: "skins/base-2_91.wsz" },
             initialTracks: []
         });
-
-        // Esposto su window per il bridge nativo Kotlin (DroidAmpAudioBridge,
-        // Fase 2) e per debug da chrome://inspect.
         window.droidamp = webamp;
-
         webamp.renderWhenReady(document.getElementById("webamp-container"));
 
-        // NOTA: qui c'era un tentativo di scalare/centrare Webamp per
-        // riempire lo schermo (droidampFitToScreen). L'ho tolto: le
-        // finestre Webamp usano position:absolute anche INTERNAMENTE per i
-        // controlli (slider, bottoni), e ogni tentativo di manipolarne il
-        // position/transform da fuori ha finito per rompere quel sistema
-        // di riferimento interno in modi imprevedibili. Meglio riprendere
-        // questa cosa con calma in un secondo momento, con un approccio
-        // piu' testato, invece di continuare a rattoppare. Per ora Webamp
-        // resta alla sua dimensione naturale, centrato dal suo stesso
-        // comportamento di default.
+        // ------------------------------------------------------------------
+        // FIT-TO-SCREEN (v3) - CSS "zoom", NIENTE position, NIENTE DOM move.
+        //
+        // Lezione imparata dai tentativi precedenti: le finestre Webamp
+        // usano position:absolute anche per i loro controlli interni
+        // (slider, bottoni). Qualsiasi cosa che cambi il "position" o
+        // sposti il nodo altrove nel DOM rompe quel sistema di
+        // riferimento. La proprieta' CSS "zoom" invece scala il layout
+        // (non solo il rendering visivo, a differenza di transform) --
+        // tutti i discendenti, inclusi quelli position:absolute, vengono
+        // ricalcolati correttamente nel nuovo spazio scalato. Non tocchiamo
+        // ne' position ne' la posizione nel DOM: solo "zoom".
+        // ------------------------------------------------------------------
+        window.droidampFitToScreen = function (selector) {
+            var el = document.querySelector(selector);
+            if (!el) return;
+            el.style.zoom = "1";
+            var rect = el.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) return;
+            var scale = Math.min(
+                window.innerWidth / rect.width,
+                window.innerHeight / rect.height
+            ) * 0.97;
+            el.style.zoom = String(scale);
+        };
     </script>
 </body>
 </html>
