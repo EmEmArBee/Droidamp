@@ -14,10 +14,25 @@
         #webamp-container {
             width: 100%; height: 100%;
         }
+        #droidamp-debug {
+            position: fixed;
+            top: 0; left: 0;
+            z-index: 999999;
+            background: rgba(0,0,0,0.85);
+            color: #0f0;
+            font-family: monospace;
+            font-size: 11px;
+            padding: 4px;
+            white-space: pre;
+            pointer-events: none;
+            max-width: 100vw;
+            overflow: hidden;
+        }
     </style>
 </head>
 <body>
     <div id="webamp-container"></div>
+    <div id="droidamp-debug">DEBUG: in attesa...</div>
 
     <script src="webamp.bundle.min.js"></script>
     <script>
@@ -29,41 +44,83 @@
         webamp.renderWhenReady(document.getElementById("webamp-container"));
 
         // ------------------------------------------------------------------
-        // FIT-TO-SCREEN (v4) - CSS transform:scale, NIENTE position/DOM move.
-        //
-        // v3 usava CSS "zoom", che pero' la WebView di sistema Android non
-        // sembra supportare (proprieta' non-standard, storicamente solo
-        // desktop/Safari): veniva ignorata silenziosamente, da qui lo zoom
-        // che non cambiava nulla. transform:scale() e' CSS3 standard,
-        // supportato ovunque.
-        //
-        // Lezione imparata dai tentativi precedenti: le finestre Webamp
-        // usano position:absolute anche per i loro controlli interni
-        // (slider, bottoni). Qualsiasi cosa che cambi il "position" o
-        // sposti il nodo altrove nel DOM rompe quel sistema di
-        // riferimento. Qui NON tocchiamo mai "position": solo transform,
-        // con transform-origin "top left" cosi' l'elemento scala a
-        // partire dalla sua posizione attuale invece di spostarsi.
+        // PANNELLO DEBUG VISIBILE - temporaneo, per capire davvero cosa
+        // succede invece di continuare a indovinare alla cieca. Scrive i
+        // numeri reali (dimensioni misurate, scala calcolata, se
+        // l'elemento e' stato trovato) direttamente a schermo.
         // ------------------------------------------------------------------
+        function droidampDebugLog(text) {
+            var el = document.getElementById("droidamp-debug");
+            if (el) el.textContent = text;
+        }
+
+        // FIT-TO-SCREEN per una singola finestra (usato in landscape, dove
+        // #main-window / #equalizer-window / #playlist-window hanno una
+        // scatola vera e misurabile).
         window.droidampFitToScreen = function (selector) {
             var el = document.querySelector(selector);
-            if (!el) return;
+            if (!el) {
+                droidampDebugLog("FIT('" + selector + "'): elemento NON trovato");
+                return;
+            }
             el.style.transform = "none";
             var rect = el.getBoundingClientRect();
-            if (rect.width === 0 || rect.height === 0) return;
+            var msg = "FIT('" + selector + "')\n" +
+                "rect: " + rect.width.toFixed(1) + "x" + rect.height.toFixed(1) + "\n" +
+                "innerW/H: " + window.innerWidth + "x" + window.innerHeight;
+            if (rect.width === 0 || rect.height === 0) {
+                droidampDebugLog(msg + "\n=> rect e' 0, STOP (nessuno scaling)");
+                return;
+            }
             var scale = Math.min(
                 window.innerWidth / rect.width,
                 window.innerHeight / rect.height
             ) * 0.97;
-            // Solo transform, MAI position: transform con transform-origin
-            // "top left" scala l'elemento (e tutti i suoi discendenti,
-            // inclusi quelli position:absolute) a partire dal suo angolo
-            // in alto a sinistra attuale, senza spostarlo ne' toccare il
-            // suo "position". E' CSS standard, supportato ovunque
-            // (a differenza di "zoom", che la WebView di sistema Android
-            // sembra ignorare silenziosamente).
             el.style.transformOrigin = "top left";
             el.style.transform = "scale(" + scale + ")";
+            droidampDebugLog(msg + "\nscale calcolata: " + scale.toFixed(3) + "\ntransform applicato.");
+        };
+
+        // FIT-TO-SCREEN per l'intero stack (usato in portrait). Invece di
+        // misurare "#webamp" (che potrebbe non avere una scatola propria),
+        // misuriamo l'ingombro delle 3 finestre reali e scaliamo <body>.
+        window.droidampFitWholeStack = function () {
+            var ids = ["#main-window", "#equalizer-window", "#playlist-window"];
+            var minTop = Infinity, minLeft = Infinity, maxRight = -Infinity, maxBottom = -Infinity;
+            var found = [];
+            document.body.style.transform = "none";
+            for (var i = 0; i < ids.length; i++) {
+                var w = document.querySelector(ids[i]);
+                if (!w) { found.push(ids[i] + "=ASSENTE"); continue; }
+                var r = w.getBoundingClientRect();
+                found.push(ids[i] + "=" + r.width.toFixed(0) + "x" + r.height.toFixed(0));
+                if (r.width === 0 || r.height === 0) continue;
+                minTop = Math.min(minTop, r.top);
+                minLeft = Math.min(minLeft, r.left);
+                maxRight = Math.max(maxRight, r.right);
+                maxBottom = Math.max(maxBottom, r.bottom);
+            }
+            var baseMsg = "STACK:\n" + found.join("\n") + "\ninnerW/H: " + window.innerWidth + "x" + window.innerHeight;
+            if (maxRight === -Infinity) {
+                droidampDebugLog(baseMsg + "\n=> nessuna finestra misurabile, STOP");
+                return;
+            }
+            var contentWidth = maxRight - minLeft;
+            var contentHeight = maxBottom - minTop;
+            if (contentWidth <= 0 || contentHeight <= 0) {
+                droidampDebugLog(baseMsg + "\n=> contentW/H <= 0, STOP");
+                return;
+            }
+            var scale = Math.min(
+                window.innerWidth / contentWidth,
+                window.innerHeight / contentHeight
+            ) * 0.97;
+            document.body.style.transformOrigin = "top left";
+            document.body.style.transform =
+                "translate(" + (-minLeft * scale) + "px, " + (-minTop * scale) + "px) scale(" + scale + ")";
+            window.scrollTo(0, 0);
+            droidampDebugLog(baseMsg + "\ncontent: " + contentWidth.toFixed(0) + "x" + contentHeight.toFixed(0) +
+                "\nscale: " + scale.toFixed(3) + "\ntransform applicato su <body>.");
         };
     </script>
 </body>

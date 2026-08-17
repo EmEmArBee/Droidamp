@@ -101,15 +101,15 @@ class MainActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView, url: String) {
                 val js = """
                     (function droidAmpWaitAndFit(triesLeft) {
-                        var el = document.querySelector('#webamp');
+                        var el = document.querySelector('#main-window');
                         if (!el) {
                             if (triesLeft > 0) {
                                 setTimeout(function () { droidAmpWaitAndFit(triesLeft - 1); }, 100);
                             }
                             return;
                         }
-                        if (window.droidampFitToScreen) {
-                            window.droidampFitToScreen('#webamp');
+                        if (window.droidampFitWholeStack) {
+                            window.droidampFitWholeStack();
                         }
                     })(50);
                 """.trimIndent()
