@@ -86,7 +86,14 @@ class WindowFragment : Fragment() {
                         }
                     })(50);
                 """.trimIndent()
-                view.evaluateJavascript(js, null)
+                view.evaluateJavascript(js) {
+                    // Il debug mostra "transform applicato" ma visivamente
+                    // non cambia nulla: sospetto che LAYER_TYPE_SOFTWARE
+                    // (usato per il fix del glitch a griglia) non
+                    // ridisegni da solo dopo una mutazione DOM fatta da
+                    // JS esterno. Forziamo il repaint esplicitamente.
+                    view.invalidate()
+                }
             }
         }
 
